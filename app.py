@@ -66,117 +66,35 @@ def build_deck_url(deck: Dict) -> Optional[str]:
 
 
 def extract_image_url(deck: Dict) -> Optional[str]:
-    """Best-effort extraction of a featured/cover image URL from a deck object."""
-    candidate_keys = (
-        "featuredImage",
-        "featured",
-        "image",
-        "thumbnail",
-        "thumb",
-        "cover",
-        "coverImage",
-        "images",
-    )
+    """Extract the featured image URL from the deck object.
 
-    def from_value(value) -> Optional[str]:
-        if isinstance(value, str) and value.startswith("http"):
-            return value
-        if isinstance(value, dict):
-            for k in ("url", "src", "href"):  # common URL fields
-                v = value.get(k)
-                if isinstance(v, str) and v.startswith("http"):
-                    return v
-        if isinstance(value, list) and value:
-            first = value[0]
-            return from_value(first)
-        return None
-
-    for key in candidate_keys:
-        if key in deck:
-            found = from_value(deck.get(key))
-            if found:
-                return found
-    # Sometimes nested under media or similar
-    for parent in ("media", "assets"):  # best guess fallbacks
-        if isinstance(deck.get(parent), dict):
-            found = from_value(deck[parent])
-            if found:
-                return found
+    `deck["featured"]` is expected to be a non-empty string URL.
+    """
+    value = deck.get("featured")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
     return None
 
 
 def extract_colors_raw(deck: Dict) -> List[str]:
-    """Extract raw color letters from common Archidekt fields.
+    """Extract raw color letters; optimized for deck['colors'] dict shape.
 
     Returns a list of unique uppercase letters among W, U, B, R, G.
     """
-    candidates = []
-    for key in ("colors", "colorIdentity", "colourIdentity", "colour", "identity"):
-        if key in deck:
-            candidates.append(deck.get(key))
-
-    colors: List[str] = []
-    def add_letter(letter: str) -> None:
-        upper = letter.upper()
-        if upper in ("W", "U", "B", "R", "G") and upper not in colors:
-            colors.append(upper)
-
-    name_to_letter = {
-        "white": "W", "w": "W", "wht": "W",
-        "blue": "U", "u": "U", "blu": "U",
-        "black": "B", "b": "B", "blk": "B",
-        "red": "R", "r": "R",
-        "green": "G", "g": "G", "grn": "G",
-    }
-
-    for c in candidates:
-        if isinstance(c, str):
-            # Split on non-letters to accommodate formats like "W,U" or "White,Blue"
-            tokens = [t for t in __import__('re').split(r"[^A-Za-z]", c) if t]
-            if not tokens:
-                tokens = list(c)
-            for tok in tokens:
-                letter = name_to_letter.get(tok.lower())
-                if letter:
-                    add_letter(letter)
-                else:
-                    for ch in tok:
-                        add_letter(ch)
-        elif isinstance(c, list):
-            for item in c:
-                if isinstance(item, str):
-                    letter = name_to_letter.get(item.lower())
-                    if letter:
-                        add_letter(letter)
-                    else:
-                        if len(item) == 1:
-                            add_letter(item)
-                        else:
-                            for ch in item:
-                                add_letter(ch)
-                elif isinstance(item, dict):
-                    # Common nested forms like { code: 'W' } or { symbol: 'W' }
-                    for k in ("code", "symbol", "id"):
-                        v = item.get(k)
-                        if isinstance(v, str):
-                            letter = name_to_letter.get(v.lower())
-                            if letter:
-                                add_letter(letter)
-                            else:
-                                for ch in v:
-                                    add_letter(ch)
-        elif isinstance(c, dict):
-            # Expected format: { "W": 12, "U": 0, ... }
-            for k, v in c.items():
-                try:
-                    count = int(v)
-                except (TypeError, ValueError):
-                    continue
-                if count > 0:
-                    letter = name_to_letter.get(str(k).lower()) or str(k).upper()
-                    add_letter(letter)
-    return colors
-
+    colors_dict = deck.get("colors")
+    if isinstance(colors_dict, dict):
+        ordered_keys = ["W", "U", "B", "R", "G"]
+        result = []
+        for key in ordered_keys:
+            try:
+                count = int(colors_dict.get(key, 0))
+            except (TypeError, ValueError):
+                count = 0
+            if count > 0:
+                result.append(key)
+        if result:
+            return result
+    return []
 
 def order_colors(colors: List[str]) -> List[str]:
     """Order colors per requested sequences for 1..5 colors.
