@@ -1,0 +1,11 @@
+services:
+  app:
+    build: .
+    image: preconceive:latest
+    container_name: preconceive
+    ports:
+      - "5001:5000"
+    environment:
+      - PORT=5000
+    restart: unless-stopped
+
