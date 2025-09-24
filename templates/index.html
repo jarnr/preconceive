@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Precon Deck Picker</title>
+  <style>
+    html,body{height:100%}
+    body{display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;line-height:1.4;margin:0;padding:24px;background:#0b0b0b;color:#eaeaea}
+    .card{max-width:720px;width:100%;text-align:center;background:#121212;border:1px solid #2a2a2a;border-radius:14px;padding:28px;box-shadow:0 10px 25px rgba(0,0,0,.35)}
+    button{font-size:1rem;padding:.7rem 1.1rem;border-radius:10px;border:1px solid #3a3a3a;cursor:pointer;background:#1a1a1a;color:#fff}
+    button[disabled]{opacity:.6;cursor:not-allowed}
+    #result{margin-top:16px;font-size:1.05rem}
+    #deckTitle{font-weight:600}
+    a{color:#7ab4ff;text-decoration:none}
+    a:hover{text-decoration:underline}
+    .row{display:flex;align-items:center;gap:10px;justify-content:center;margin-top:8px}
+    img.deck-img{display:block;margin:16px auto 0;max-width:100%;height:auto;border-radius:10px;border:1px solid #2a2a2a}
+    .colors{display:flex;gap:6px;justify-content:center;margin:14px 0 0}
+    .color-swatch{width:18px;height:18px;border-radius:4px;border:1px solid #2a2a2a}
+    .W{background:#f8f6f0}
+    .U{background:#9cd3ff}
+    .B{background:#3c3a3a}
+    .R{background:#ff8d7a}
+    .G{background:#7ed892}
+  </style>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎲</text></svg>">
+</head>
+<body>
+  <div class="card">
+    <h1>Magic: The Gathering Commander<br>Precon Deck Picker</h1>
+    <p>Click to randomly select an Archidekt preconstructed deck.</p>
+    <button id="pick">Pick a deck</button>
+    <div id="result"></div>
+  </div>
+  <script>
+    const button = document.getElementById('pick');
+    const result = document.getElementById('result');
+    async function pickDeck(){
+      button.disabled = true;
+      button.textContent = 'Picking...';
+      result.textContent = '';
+      try {
+        const res = await fetch('/generate', { cache: 'no-store' });
+        if(!res.ok){
+          const txt = await res.text();
+          throw new Error(txt || ('HTTP ' + res.status));
+        }
+        const data = await res.json();
+        const url = data.url;
+        const title = data.title || 'Random Deck';
+        const image = data.image || null;
+        const colors = Array.isArray(data.colors) ? data.colors : [];
+        document.title = title + ' · Preconstructed Deck Picker';
+        const colorHtml = colors.length ? ('<div class=\'colors\'>' + colors.map(c => '<span class=\'color-swatch ' + c + '\'></span>').join('') + '</div>') : '';
+        result.innerHTML = '' + colorHtml +
+          '<div style=\'margin-top:8px\'>Your random deck: <span id=\'deckTitle\'>' + title + '</span></div><div class=\'row\'>' +
+          '<a id=\'deckLink\' href=\"' + url + '\" target=\"_blank\" rel=\"noopener noreferrer\">' + url + '</a>' +
+          '<button id=\'copyBtn\' aria-label=\'Copy link\'>Copy link</button>' +
+          '</div>' + (image ? '<img class=\'deck-img\' alt=\'Deck image\' src=\"' + image + '\" />' : '');
+        const copyBtn = document.getElementById('copyBtn');
+        copyBtn.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(url);
+            copyBtn.textContent = 'Copied!';
+            setTimeout(() => copyBtn.textContent = 'Copy link', 1200);
+          } catch {
+            copyBtn.textContent = 'Copy failed';
+            setTimeout(() => copyBtn.textContent = 'Copy link', 1200);
+          }
+        });
+        button.textContent = 'Pick again';
+      } catch (e){
+        result.textContent = 'Error: ' + e.message;
+        button.textContent = 'Try again';
+      } finally {
+        button.disabled = false;
+      }
+    }
+    button.addEventListener('click', pickDeck);
+  </script>
+</body>
+</html>
+
