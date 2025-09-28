@@ -5,6 +5,10 @@ from typing import List, Dict, Optional
 import requests
 from flask import Flask, Response, jsonify, render_template
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 ARCHIDEKT_API_URL = "https://archidekt.com/api/decks/v3/?ownerUsername=Archidekt_Precons"
 ARCHIDEKT_DECK_URL = "https://archidekt.com/decks/{id}"
@@ -23,57 +27,32 @@ def fetch_all_decks(start_url: str) -> List[Dict]:
         "Accept": "application/json",
     }
 
+    i = 0
     while url:
         resp = requests.get(url, headers=headers, timeout=15)
         resp.raise_for_status()
         data = resp.json()
 
-        page_decks = []
-        if isinstance(data, dict):
-            if isinstance(data.get("results"), list):
-                page_decks = data.get("results", [])
-            elif isinstance(data.get("decks"), list):
-                page_decks = data.get("decks", [])
-        elif isinstance(data, list):
-            page_decks = data
+        page_decks = data.get("results", [])
 
         if page_decks:
             decks.extend(page_decks)
 
-        url = None
-        if isinstance(data, dict):
-            next_url = data.get("next")
-            if isinstance(next_url, str) and next_url.strip():
-                url = next_url
+        url = data.get("next", None)
+        i += 1
+        if i > 10:
+            logger.warning(f"Too many pages: {i}")
+            logger.warning(f"URL: {url}")
+            break
 
     return decks
 
 
 def build_deck_url(deck: Dict) -> Optional[str]:
-    deck_id = None
-    # Support several possible id shapes just in case
-    for key in ("id", "deckId", "deck_id"):
-        if key in deck:
-            deck_id = deck[key]
-            break
+    deck_id = deck.get("id")
     if deck_id is None:
         return None
-    try:
-        deck_id_int = int(deck_id)
-    except (TypeError, ValueError):
-        return None
-    return ARCHIDEKT_DECK_URL.format(id=deck_id_int)
-
-
-def extract_image_url(deck: Dict) -> Optional[str]:
-    """Extract the featured image URL from the deck object.
-
-    `deck["featured"]` is expected to be a non-empty string URL.
-    """
-    value = deck.get("featured")
-    if isinstance(value, str) and value.strip():
-        return value.strip()
-    return None
+    return ARCHIDEKT_DECK_URL.format(id=deck_id)
 
 
 def extract_colors_raw(deck: Dict) -> List[str]:
@@ -95,6 +74,7 @@ def extract_colors_raw(deck: Dict) -> List[str]:
         if result:
             return result
     return []
+
 
 def order_colors(colors: List[str]) -> List[str]:
     """Order colors per requested sequences for 1..5 colors.
@@ -141,6 +121,7 @@ def order_colors(colors: List[str]) -> List[str]:
         return list("WUBRG")
 
     # Fallback: base WUBRG order filtered by presence
+    logger.warning(f"Fallback: {color_set}")
     return [c for c in base_order if c in color_set]
 
 
@@ -169,14 +150,9 @@ def create_app() -> Flask:
             return Response("Chosen deck missing id", status=500, mimetype="text/plain")
 
         # Try to derive a title: Archidekt API often includes 'name' or 'title'.
-        deck_title = None
-        for key in ("name", "title", "deckName"):
-            val = chosen.get(key)
-            if isinstance(val, str) and val.strip():
-                deck_title = val.strip()
-                break
-
-        image_url = extract_image_url(chosen)
+        deck_title = chosen.get("name", "Deck Name Not Found")
+        
+        image_url = chosen.get("featured", None)
         colors_ordered = order_colors(extract_colors_raw(chosen))
 
         return jsonify({
@@ -195,5 +171,3 @@ app = create_app()
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "5000"))
     app.run(host="0.0.0.0", port=port, debug=False)
-
-
