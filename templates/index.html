@@ -28,20 +28,47 @@
 </head>
 <body>
   <div class="card">
-    <h1>Magic: The Gathering Commander<br>Precon Deck Picker</h1>
-    <p>Click to randomly select an Archidekt preconstructed deck.</p>
+    <h1>Magic: The Gathering Commander<br><span id="mode">Precon</span> Deck Picker</h1>
+    <div style="margin-bottom: 16px;">
+      <button id="modeToggle" style="margin-right: 8px;">Switch to <span id="modeOther">jarcon</span></button>
+    </div>
+    <p id="description">Click to randomly select an Archidekt preconstructed deck.</p>
     <button id="pick">Pick a deck</button>
     <div id="result"></div>
   </div>
   <script>
     const button = document.getElementById('pick');
     const result = document.getElementById('result');
+    const modeToggle = document.getElementById('modeToggle');
+    const modeOther = document.getElementById('modeOther');
+    const modeSpan = document.getElementById('mode');
+    const description = document.getElementById('description');
+    
+    let currentMode = 'precon';
+    
+    function updateUI() {
+      if (currentMode === 'precon') {
+        modeSpan.textContent = 'Precon';
+        description.textContent = 'Click to randomly select an Archidekt preconstructed deck.';
+        modeOther.textContent = 'jarcon';
+      } else {
+        modeSpan.textContent = 'jarcon';
+        description.textContent = 'Click to get a deck lovingly crafted by jarnr.';
+        modeOther.textContent = 'Precon';
+      }
+    }
+    
+    modeToggle.addEventListener('click', () => {
+      currentMode = currentMode === 'precon' ? 'jarnr' : 'precon';
+      updateUI();
+    });
+    
     async function pickDeck(){
       button.disabled = true;
       button.textContent = 'Picking...';
       result.textContent = '';
       try {
-        const res = await fetch('/generate', { cache: 'no-store' });
+        const res = await fetch(`/generate?mode=${currentMode}`, { cache: 'no-store' });
         if(!res.ok){
           const txt = await res.text();
           throw new Error(txt || ('HTTP ' + res.status));

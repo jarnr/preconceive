@@ -3,14 +3,15 @@ import random
 from typing import List, Dict, Optional
 
 import requests
-from flask import Flask, Response, jsonify, render_template
+from flask import Flask, Response, jsonify, render_template, request
 
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-ARCHIDEKT_API_URL = "https://archidekt.com/api/decks/v3/?ownerUsername=Archidekt_Precons"
+ARCHIDEKT_PRECON_URL = "https://archidekt.com/api/decks/v3/?ownerUsername=Archidekt_Precons"
+ARCHIDEKT_JARNR_URL = "https://archidekt.com/api/decks/v3/?ownerUsername=jarnr&size=100"
 ARCHIDEKT_DECK_URL = "https://archidekt.com/decks/{id}"
 
 
@@ -134,8 +135,17 @@ def create_app() -> Flask:
 
     @app.get("/generate")
     def generate() -> Response:
+        mode = request.args.get("mode", "precon").lower()
+        
+        if mode == "jarnr":
+            api_url = ARCHIDEKT_JARNR_URL
+        elif mode == "precon":
+            api_url = ARCHIDEKT_PRECON_URL
+        else:
+            return Response("Invalid mode", status=400, mimetype="text/plain")
+            
         try:
-            all_decks = fetch_all_decks(ARCHIDEKT_API_URL)
+            all_decks = fetch_all_decks(api_url)
         except requests.HTTPError as http_err:
             return Response(f"Upstream HTTP error: {http_err}", status=502, mimetype="text/plain")
         except requests.RequestException as req_err:
@@ -149,8 +159,9 @@ def create_app() -> Flask:
         if not deck_url:
             return Response("Chosen deck missing id", status=500, mimetype="text/plain")
 
-        # Try to derive a title: Archidekt API often includes 'name' or 'title'.
-        deck_title = chosen.get("name", "Deck Name Not Found")
+        deck_title = chosen.get("name", "").replace(" - jarcon", "").strip()
+        if not deck_title:
+            deck_title = "Deck Name Not Found"
         
         image_url = chosen.get("featured", None)
         colors_ordered = order_colors(extract_colors_raw(chosen))
