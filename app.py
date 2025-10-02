@@ -26,7 +26,7 @@ def fetch_all_decks(start_url: str) -> List[Dict]:
     decks: List[Dict] = []
     url: Optional[str] = start_url
     headers = {
-        "User-Agent": "preconceive/1.0 (+https://archidekt.com/)",
+        "User-Agent": "preconceive/1.0 (https://github.com/jarnr/preconceive)",
         "Accept": "application/json",
     }
 
