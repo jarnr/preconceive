@@ -167,8 +167,8 @@ def create_app() -> Flask:
     def root() -> Response:
         return Response(render_template("index.html"), mimetype="text/html")
 
-    @app.get("/generate")
-    def generate() -> Response:
+    @app.get("/pick")
+    def pick() -> Response:
         # Rate limiting per IP
         ip = request.headers.get('X-Forwarded-For', request.remote_addr) or 'unknown'
         now = time()

@@ -61,7 +61,7 @@
       button.textContent = 'Picking...';
       result.textContent = '';
       try {
-        const res = await fetch(`/generate?username=${encodeURIComponent(username)}`, { cache: 'no-store' });
+        const res = await fetch(`/pick?username=${encodeURIComponent(username)}`, { cache: 'no-store' });
         if(!res.ok){
           const txt = await res.text();
           throw new Error(txt || ('HTTP ' + res.status));
