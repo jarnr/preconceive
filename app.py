@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 ARCHIDEKT_USER_URL = "https://archidekt.com/api/decks/v3/?ownerUsername={username}"
 ARCHIDEKT_DECK_URL = "https://archidekt.com/decks/{id}"
-ALLOWED_USERS = ["Archidekt_Precons", "jarnr", "pertrick"]
+ALLOWED_USERS = ["Archidekt_Precons", "jarnr", "pertrick", "Bowden1337"]
 
 
 def fetch_all_decks(start_url: str) -> List[Dict]:
