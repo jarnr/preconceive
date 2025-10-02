@@ -10,9 +10,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-ARCHIDEKT_PRECON_URL = "https://archidekt.com/api/decks/v3/?ownerUsername=Archidekt_Precons"
-ARCHIDEKT_JARNR_URL = "https://archidekt.com/api/decks/v3/?ownerUsername=jarnr&size=100"
+ARCHIDEKT_USER_URL = "https://archidekt.com/api/decks/v3/?ownerUsername={username}"
 ARCHIDEKT_DECK_URL = "https://archidekt.com/decks/{id}"
+ALLOWED_USERS = ["Archidekt_Precons", "jarnr", "pertrick"]
 
 
 def fetch_all_decks(start_url: str) -> List[Dict]:
@@ -135,14 +135,10 @@ def create_app() -> Flask:
 
     @app.get("/generate")
     def generate() -> Response:
-        mode = request.args.get("mode", "precon").lower()
-        
-        if mode == "jarnr":
-            api_url = ARCHIDEKT_JARNR_URL
-        elif mode == "precon":
-            api_url = ARCHIDEKT_PRECON_URL
-        else:
-            return Response("Invalid mode", status=400, mimetype="text/plain")
+        username = request.args.get("username", "Archidekt_Precons").strip()
+        if not username in ALLOWED_USERS:
+            return Response("username is invalid", status=400, mimetype="text/plain")
+        api_url = ARCHIDEKT_USER_URL.format(username=username)
             
         try:
             all_decks = fetch_all_decks(api_url)
