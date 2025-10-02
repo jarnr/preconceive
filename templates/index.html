@@ -17,6 +17,9 @@
     .row{display:flex;align-items:center;gap:10px;justify-content:center;margin-top:8px}
     img.deck-img{display:block;margin:16px auto 0;max-width:100%;height:auto;border-radius:10px;border:1px solid #2a2a2a}
     .colors{display:flex;gap:6px;justify-content:center;margin:14px 0 0}
+    .filters{display:flex;gap:8px;justify-content:center;margin:10px 0 12px}
+    .filter-swatch{width:22px;height:22px;border-radius:6px;border:1px solid #2a2a2a;cursor:pointer;transition:opacity .15s ease, filter .15s ease}
+    .filter-swatch.unselected{opacity:.35;filter:grayscale(.6)}
     .color-swatch{width:18px;height:18px;border-radius:4px;border:1px solid #2a2a2a}
     .W{background:#f8f6f0}
     .U{background:#9cd3ff}
@@ -37,6 +40,13 @@
         <option value="pertrick">pertrick</option>
       </select>
     </div>
+    <div id="colorFilters" class="filters" aria-label="Color filters">
+      <span class="filter-swatch W" data-color="W" title="White"></span>
+      <span class="filter-swatch U" data-color="U" title="Blue"></span>
+      <span class="filter-swatch B" data-color="B" title="Black"></span>
+      <span class="filter-swatch R" data-color="R" title="Red"></span>
+      <span class="filter-swatch G" data-color="G" title="Green"></span>
+    </div>
     <p id="description">Click to randomly select an Archidekt preconstructed deck.</p>
     <button id="pick">Pick a deck</button>
     <div id="result"></div>
@@ -47,6 +57,7 @@
     const userSelect = document.getElementById('userSelect');
     const modeSpan = document.getElementById('user');
     const description = document.getElementById('description');
+    const colorFilters = document.getElementById('colorFilters');
     
     let username = 'Archidekt_Precons';
     modeSpan.textContent = username;
@@ -56,12 +67,29 @@
       modeSpan.textContent = username;
     });
     
+    // Color filter state: selected by default
+    const allowedColors = new Set(['W','U','B','R','G']);
+    colorFilters.addEventListener('click', (e) => {
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
+      const c = target.getAttribute('data-color');
+      if (!c) return;
+      if (allowedColors.has(c)) {
+        allowedColors.delete(c);
+        target.classList.add('unselected');
+      } else {
+        allowedColors.add(c);
+        target.classList.remove('unselected');
+      }
+    });
+    
     async function pickDeck(){
       button.disabled = true;
       button.textContent = 'Picking...';
       result.textContent = '';
       try {
-        const res = await fetch(`/pick?username=${encodeURIComponent(username)}`, { cache: 'no-store' });
+        const allowedParam = Array.from(allowedColors).join('');
+        const res = await fetch(`/pick?username=${encodeURIComponent(username)}&allowed=${encodeURIComponent(allowedParam)}`, { cache: 'no-store' });
         if(!res.ok){
           const txt = await res.text();
           throw new Error(txt || ('HTTP ' + res.status));

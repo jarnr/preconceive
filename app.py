@@ -1,6 +1,6 @@
 import os
 import random
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Set
 
 import requests
 from flask import Flask, Response, jsonify, render_template, request
@@ -183,6 +183,11 @@ def create_app() -> Flask:
         if not username in ALLOWED_USERS:
             return Response("username is invalid", status=400, mimetype="text/plain")
         api_url = ARCHIDEKT_USER_URL.format(username=username)
+
+        colors_allowed = request.args.get("allowed", "WUBRG").upper()
+        for c in colors_allowed:
+            if c not in {"W","U","B","R","G"}:
+                return Response("allowed is invalid", status=400, mimetype="text/plain")
             
         try:
             # Cache decks by username
@@ -202,7 +207,14 @@ def create_app() -> Flask:
         if not all_decks:
             return Response("No decks found", status=404, mimetype="text/plain")
 
-        chosen = random.choice(all_decks)
+        # filter by allowed colors: remove decks containing any unselected color
+        def deck_colors(deck: Dict) -> List[str]:
+            return order_colors(extract_colors_raw(deck))
+
+        filtered = [d for d in all_decks if set(deck_colors(d)).issubset(colors_allowed)]
+        decks_pool = filtered if filtered else all_decks
+
+        chosen = random.choice(decks_pool)
         deck_url = build_deck_url(chosen)
         if not deck_url:
             return Response("Chosen deck missing id", status=500, mimetype="text/plain")
@@ -212,7 +224,7 @@ def create_app() -> Flask:
             deck_title = "Deck Name Not Found"
         
         image_url = chosen.get("featured", None)
-        colors_ordered = order_colors(extract_colors_raw(chosen))
+        colors_ordered = deck_colors(chosen)
 
         return jsonify({
             "url": deck_url,
