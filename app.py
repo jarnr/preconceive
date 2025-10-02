@@ -184,10 +184,14 @@ def create_app() -> Flask:
             return Response("username is invalid", status=400, mimetype="text/plain")
         api_url = ARCHIDEKT_USER_URL.format(username=username)
 
-        colors_allowed = request.args.get("allowed", "WUBRG").upper()
-        for c in colors_allowed:
+        filter_type = request.args.get("filter_type", "subset").lower()
+        if filter_type not in {"exact", "subset"}:
+            return Response("filter_type is invalid", status=400, mimetype="text/plain")
+
+        colors = set(request.args.get("colors", "WUBRG").upper())
+        for c in colors:
             if c not in {"W","U","B","R","G"}:
-                return Response("allowed is invalid", status=400, mimetype="text/plain")
+                return Response("colors is invalid", status=400, mimetype="text/plain")
             
         try:
             # Cache decks by username
@@ -211,7 +215,10 @@ def create_app() -> Flask:
         def deck_colors(deck: Dict) -> List[str]:
             return order_colors(extract_colors_raw(deck))
 
-        filtered = [d for d in all_decks if set(deck_colors(d)).issubset(colors_allowed)]
+        if filter_type == "exact":
+            filtered = [d for d in all_decks if set(deck_colors(d)) == set(colors)]
+        else:
+            filtered = [d for d in all_decks if set(deck_colors(d)).issubset(colors)]
         decks_pool = filtered if filtered else all_decks
 
         chosen = random.choice(decks_pool)

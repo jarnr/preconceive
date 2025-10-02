@@ -17,9 +17,14 @@
     .row{display:flex;align-items:center;gap:10px;justify-content:center;margin-top:8px}
     img.deck-img{display:block;margin:16px auto 0;max-width:100%;height:auto;border-radius:10px;border:1px solid #2a2a2a}
     .colors{display:flex;gap:6px;justify-content:center;margin:14px 0 0}
-    .filters{display:flex;gap:8px;justify-content:center;margin:10px 0 12px}
+    .filters{display:block;margin:10px 0 12px}
+    .filter-swatch-container{display:flex;gap:6px;justify-content:center;margin-top:8px;}
     .filter-swatch{width:22px;height:22px;border-radius:6px;border:1px solid #2a2a2a;cursor:pointer;transition:opacity .15s ease, filter .15s ease}
     .filter-swatch.unselected{opacity:.35;filter:grayscale(.6)}
+    .tooltip-icon{display:inline-block;width:16px;height:16px;border-radius:50%;background:#555;color:#fff;text-align:center;line-height:16px;font-size:12px;font-weight:bold;cursor:help;margin-left:8px;position:relative}
+    .tooltip-icon:hover .tooltip-text{visibility:visible;opacity:1}
+    .tooltip-text{position:absolute;background:#333;color:#fff;padding:8px 12px;border-radius:6px;font-size:0.85rem;white-space:normal;width:200px;visibility:hidden;opacity:0;transition:visibility 0s linear 0.2s, opacity 0.2s ease;z-index:1000}
+    .tooltip-text::after{content:'';position:absolute;top:-4px;left:50%;margin-left:-4px;border:4px solid transparent;border-bottom-color:#333}
     .color-swatch{width:18px;height:18px;border-radius:4px;border:1px solid #2a2a2a}
     .W{background:#f8f6f0}
     .U{background:#9cd3ff}
@@ -40,12 +45,23 @@
         <option value="pertrick">pertrick</option>
       </select>
     </div>
-    <div id="colorFilters" class="filters" aria-label="Color filters">
-      <span class="filter-swatch W" data-color="W" title="White"></span>
-      <span class="filter-swatch U" data-color="U" title="Blue"></span>
-      <span class="filter-swatch B" data-color="B" title="Black"></span>
-      <span class="filter-swatch R" data-color="R" title="Red"></span>
-      <span class="filter-swatch G" data-color="G" title="Green"></span>
+      <div id="colorFilters" class="filters" aria-label="Color filters">
+        <label for="filterSelect" style="margin-right: 8px;">Filter Type:</label>
+        <select id="filterSelect">
+          <option value="subset" selected>Include Selected Colors</option>
+          <option value="exact">Exact Match</option>
+        </select>
+        <span class="tooltip-icon" id="filterTooltip">
+          i
+          <span class="tooltip-text" id="tooltipText">This will pick from all decks containing the selected colors. Unselect a color to filter it out.</span>
+        </span>
+      <div class="filter-swatch-container">
+        <span class="filter-swatch W" data-color="W" title="White"></span>
+        <span class="filter-swatch B" data-color="B" title="Black"></span>
+        <span class="filter-swatch U" data-color="U" title="Blue"></span>
+        <span class="filter-swatch R" data-color="R" title="Red"></span>
+        <span class="filter-swatch G" data-color="G" title="Green"></span>
+      </div>
     </div>
     <p id="description">Click to randomly select an Archidekt preconstructed deck.</p>
     <button id="pick">Pick a deck</button>
@@ -55,10 +71,11 @@
     const button = document.getElementById('pick');
     const result = document.getElementById('result');
     const userSelect = document.getElementById('userSelect');
-    const modeSpan = document.getElementById('user');
+    const modeSpan = document. getElementById('user');
     const description = document.getElementById('description');
     const colorFilters = document.getElementById('colorFilters');
-    
+    const filterSelect = document.getElementById('filterSelect');
+
     let username = 'Archidekt_Precons';
     modeSpan.textContent = username;
     description.textContent = 'Click to randomly select an Archidekt deck from the selected user.';
@@ -66,19 +83,38 @@
       username = userSelect.value;
       modeSpan.textContent = username;
     });
+
+    let filter = 'subset';
+    const tooltipText = document.getElementById('tooltipText');
     
+    function updateTooltip() {
+      if (filter === 'subset') {
+        tooltipText.textContent = 'This will pick from all decks containing the selected colors. Unselect a color to filter it out.';
+      } else {
+        tooltipText.textContent = 'Select a deck containing exactly the selected colors.';
+      }
+    }
+    
+    filterSelect.addEventListener('change', () => {
+      filter = filterSelect.value;
+      updateTooltip();
+    });
+    
+    // Initialize tooltip
+    updateTooltip();
+
     // Color filter state: selected by default
-    const allowedColors = new Set(['W','U','B','R','G']);
+    const selectedColors = new Set(['W','U','B','R','G']);
     colorFilters.addEventListener('click', (e) => {
       const target = e.target;
       if (!(target instanceof HTMLElement)) return;
       const c = target.getAttribute('data-color');
       if (!c) return;
-      if (allowedColors.has(c)) {
-        allowedColors.delete(c);
+      if (selectedColors.has(c)) {
+        selectedColors.delete(c);
         target.classList.add('unselected');
       } else {
-        allowedColors.add(c);
+        selectedColors.add(c);
         target.classList.remove('unselected');
       }
     });
@@ -88,8 +124,8 @@
       button.textContent = 'Picking...';
       result.textContent = '';
       try {
-        const allowedParam = Array.from(allowedColors).join('');
-        const res = await fetch(`/pick?username=${encodeURIComponent(username)}&allowed=${encodeURIComponent(allowedParam)}`, { cache: 'no-store' });
+        const colorSelection = Array.from(selectedColors).join('')
+        const res = await fetch(`/pick?username=${encodeURIComponent(username)}&colors=${encodeURIComponent(colorSelection)}&filter_type=${encodeURIComponent(filter)}`, { cache: 'no-store' });
         if(!res.ok){
           const txt = await res.text();
           throw new Error(txt || ('HTTP ' + res.status));
