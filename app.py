@@ -4,6 +4,8 @@ from typing import List, Dict, Optional
 
 import requests
 from flask import Flask, Response, jsonify, render_template, request
+from time import time
+from collections import defaultdict, deque
 
 import logging
 
@@ -129,23 +131,73 @@ def order_colors(colors: List[str]) -> List[str]:
 def create_app() -> Flask:
     app = Flask(__name__)
 
+    # Simple in-memory cache and rate limiters
+    cache_by_user: Dict[str, Dict[str, object]] = {}
+    CACHE_TTL_SECONDS = 300  # 5 minutes
+
+    requests_by_ip: Dict[str, deque] = defaultdict(deque)
+    RATE_LIMIT_WINDOW = 60  # seconds
+    RATE_LIMIT_MAX = 30     # requests per window
+
+    # Compute inline script hashes from index.html
+    def _compute_inline_script_hashes() -> List[str]:
+        try:
+            here = os.path.dirname(os.path.abspath(__file__))
+            template_path = os.path.join(here, "templates", "index.html")
+            with open(template_path, "rb") as f:
+                content = f.read()
+            # naive extraction of inline <script>...</script> blocks
+            import re, hashlib, base64
+            text = content.decode("utf-8", errors="ignore")
+            scripts = re.findall(r"<script>([\s\S]*?)</script>", text, re.IGNORECASE)
+            hashes: List[str] = []
+            for s in scripts:
+                # CSP hash over the exact script bytes
+                digest = hashlib.sha256(s.encode("utf-8")).digest()
+                b64 = base64.b64encode(digest).decode("ascii")
+                hashes.append(f"'sha256-{b64}'")
+            return hashes
+        except Exception:
+            logger.exception("Failed computing inline script hashes")
+            return []
+
+    INLINE_SCRIPT_HASHES = _compute_inline_script_hashes()
+
     @app.get("/")
     def root() -> Response:
         return Response(render_template("index.html"), mimetype="text/html")
 
     @app.get("/generate")
     def generate() -> Response:
+        # Rate limiting per IP
+        ip = request.headers.get('X-Forwarded-For', request.remote_addr) or 'unknown'
+        now = time()
+        q = requests_by_ip[ip]
+        while q and (now - q[0]) > RATE_LIMIT_WINDOW:
+            q.popleft()
+        if len(q) >= RATE_LIMIT_MAX:
+            return Response("Too many requests", status=429, mimetype="text/plain")
+        q.append(now)
+
         username = request.args.get("username", "Archidekt_Precons").strip()
         if not username in ALLOWED_USERS:
             return Response("username is invalid", status=400, mimetype="text/plain")
         api_url = ARCHIDEKT_USER_URL.format(username=username)
             
         try:
-            all_decks = fetch_all_decks(api_url)
+            # Cache decks by username
+            cached = cache_by_user.get(username)
+            if cached and (now - cached.get("ts", 0)) < CACHE_TTL_SECONDS:
+                all_decks = cached["decks"]  # type: ignore[index]
+            else:
+                all_decks = fetch_all_decks(api_url)
+                cache_by_user[username] = {"decks": all_decks, "ts": now}
         except requests.HTTPError as http_err:
-            return Response(f"Upstream HTTP error: {http_err}", status=502, mimetype="text/plain")
-        except requests.RequestException as req_err:
-            return Response(f"Upstream request error: {req_err}", status=502, mimetype="text/plain")
+            logger.exception("Upstream HTTP error")
+            return Response("Upstream error", status=502, mimetype="text/plain")
+        except requests.RequestException:
+            logger.exception("Upstream request error")
+            return Response("Upstream error", status=502, mimetype="text/plain")
 
         if not all_decks:
             return Response("No decks found", status=404, mimetype="text/plain")
@@ -168,6 +220,27 @@ def create_app() -> Flask:
             "image": image_url,
             "colors": colors_ordered,
         })
+
+    @app.after_request
+    def set_security_headers(resp: Response) -> Response:
+        # Basic security headers and a restrictive CSP suitable for this app
+        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+        resp.headers.setdefault("X-Frame-Options", "DENY")
+        resp.headers.setdefault("Referrer-Policy", "no-referrer")
+        # Allow self, images from https and data URIs (for featured images and favicon)
+        script_src = ["'self'"] + INLINE_SCRIPT_HASHES
+        csp = (
+            "default-src 'self'; "
+            f"script-src {' '.join(script_src)}; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' https: data:; "
+            "connect-src 'self'; "
+            "object-src 'none'; "
+            "base-uri 'self'; "
+            "frame-ancestors 'none'"
+        )
+        resp.headers.setdefault("Content-Security-Policy", csp)
+        return resp
 
     return app
 

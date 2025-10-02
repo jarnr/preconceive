@@ -72,13 +72,55 @@
         const image = data.image || null;
         const colors = Array.isArray(data.colors) ? data.colors : [];
         document.title = title + ' · Preconstructed Deck Picker';
-        const colorHtml = colors.length ? ('<div class=\'colors\'>' + colors.map(c => '<span class=\'color-swatch ' + c + '\'></span>').join('') + '</div>') : '';
-        result.innerHTML = '' + colorHtml +
-          '<div style=\'margin-top:8px\'>Your random deck: <span id=\'deckTitle\'>' + title + '</span></div><div class=\'row\'>' +
-          '<a id=\'deckLink\' href=\"' + url + '\" target=\"_blank\" rel=\"noopener noreferrer\">' + url + '</a>' +
-          '<button id=\'copyBtn\' aria-label=\'Copy link\'>Copy link</button>' +
-          '</div>' + (image ? '<img class=\'deck-img\' alt=\'Deck image\' src=\"' + image + '\" />' : '');
-        const copyBtn = document.getElementById('copyBtn');
+
+        const container = document.createElement('div');
+        if (colors.length) {
+          const colorsDiv = document.createElement('div');
+          colorsDiv.className = 'colors';
+          colors.forEach(c => {
+            const sw = document.createElement('span');
+            sw.className = 'color-swatch ' + c;
+            colorsDiv.appendChild(sw);
+          });
+          container.appendChild(colorsDiv);
+        }
+
+        const titleWrap = document.createElement('div');
+        titleWrap.style.marginTop = '8px';
+        const titleText = document.createTextNode('Your random deck: ');
+        const deckTitle = document.createElement('span');
+        deckTitle.id = 'deckTitle';
+        deckTitle.textContent = title;
+        titleWrap.appendChild(titleText);
+        titleWrap.appendChild(deckTitle);
+        container.appendChild(titleWrap);
+
+        const row = document.createElement('div');
+        row.className = 'row';
+        const a = document.createElement('a');
+        a.id = 'deckLink';
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = url;
+        row.appendChild(a);
+        const copyBtn = document.createElement('button');
+        copyBtn.id = 'copyBtn';
+        copyBtn.setAttribute('aria-label', 'Copy link');
+        copyBtn.textContent = 'Copy link';
+        row.appendChild(copyBtn);
+        container.appendChild(row);
+
+        if (image) {
+          const img = document.createElement('img');
+          img.className = 'deck-img';
+          img.alt = 'Deck image';
+          img.src = image;
+          container.appendChild(img);
+        }
+
+        result.replaceChildren(container);
+
         copyBtn.addEventListener('click', async () => {
           try {
             await navigator.clipboard.writeText(url);
