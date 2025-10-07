@@ -48,7 +48,7 @@ def fetch_all_decks(start_url: str) -> List[Dict]:
             logger.warning(f"URL: {url}")
             break
 
-    return decks
+    return [deck for deck in decks if deck['size'] == 100]
 
 
 def build_deck_url(deck: Dict) -> Optional[str]:
