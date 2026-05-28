@@ -1,9 +1,10 @@
+import hmac
 import os
 import random
 from typing import List, Dict, Optional, Set
 
 import requests
-from flask import Flask, Response, jsonify, render_template, request
+from flask import Flask, Response, abort, jsonify, render_template, request, send_from_directory
 from time import time
 from collections import defaultdict, deque
 
@@ -163,9 +164,22 @@ def create_app() -> Flask:
 
     INLINE_SCRIPT_HASHES = _compute_inline_script_hashes()
 
+    ADDON_SECRET = os.environ.get("ADDON_SECRET", "")
+    ADDONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "addons")
+
     @app.get("/")
     def root() -> Response:
         return Response(render_template("index.html"), mimetype="text/html")
+
+    @app.get("/<secret>/<path:filename>")
+    def addon(secret: str, filename: str) -> Response:
+        if not ADDON_SECRET or not hmac.compare_digest(secret, ADDON_SECRET):
+            abort(404)
+        if not filename.endswith(".xpi"):
+            abort(404)
+        resp = send_from_directory(ADDONS_DIR, filename, mimetype="application/x-xpinstall", as_attachment=False)
+        resp.headers["X-Robots-Tag"] = "noindex, nofollow"
+        return resp
 
     @app.get("/pick")
     def pick() -> Response:

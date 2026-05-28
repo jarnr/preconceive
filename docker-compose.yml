@@ -7,5 +7,8 @@ services:
       - "5001:5000"
     environment:
       - PORT=5000
+      - ADDON_SECRET=${ADDON_SECRET}
+    volumes:
+      - ./addons:/app/addons:ro
     restart: unless-stopped
 
